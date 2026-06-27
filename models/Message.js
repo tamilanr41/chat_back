@@ -5,7 +5,7 @@ const messageSchema = new mongoose.Schema(
     coupleId: { type: mongoose.Schema.Types.ObjectId, ref: 'Couple', required: true, index: true },
     sender: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     text: { type: String, default: '' },
-    type: { type: String, enum: ['text', 'image', 'audio', 'sticker'], default: 'text' },
+    type: { type: String, enum: ['text', 'image', 'audio', 'video', 'sticker'], default: 'text' },
     read: { type: Boolean, default: false },
     readAt: { type: Date, default: null },
     reactions: [{ emoji: String, userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' } }],
