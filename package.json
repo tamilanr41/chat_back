@@ -1,16 +1,23 @@
 {
-  "name": "chat-back-signal-server",
+  "name": "couples-app-backend",
   "version": "1.0.0",
-  "description": "WebRTC signaling server for couples chat app",
   "main": "server.js",
+  "type": "commonjs",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "nodemon server.js"
   },
   "dependencies": {
-    "socket.io": "^4.8.3"
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.5.0",
+    "multer": "^2.2.0",
+    "socket.io": "^4.7.5"
   },
-  "engines": {
-    "node": ">=18.0.0"
+  "devDependencies": {
+    "nodemon": "^3.1.4"
   }
 }

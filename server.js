@@ -1,90 +1,67 @@
-const { Server } = require('socket.io');
+require('dotenv').config();
+
+const express = require('express');
 const http = require('http');
+const path = require('path');
+const cors = require('cors');
+const mongoose = require('mongoose');
+const { Server } = require('socket.io');
 
-const PORT = process.env.PORT || 3001;
-const server = http.createServer();
+const authRoutes = require('./routes/auth');
+const chatRoutes = require('./routes/chat');
+const memoriesRoutes = require('./routes/memories');
+const coupleRoutes = require('./routes/couple');
+const uploadRoutes = require('./routes/upload');
+const stickerRoutes = require('./routes/stickers');
+const noteRoutes = require('./routes/notes');
+const setupSocket = require('./socket');
+
+const app = express();
+const server = http.createServer(app);
+
+const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:3000';
+const allowedOrigins = [CLIENT_URL, 'http://localhost:3000', 'http://localhost:3001'];
+
 const io = new Server(server, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST'],
-  },
+  cors: { origin: allowedOrigins, credentials: true },
 });
 
-const users = new Map();
+app.set('io', io);
 
-io.on('connection', (socket) => {
-  console.log('[Signal] Connected:', socket.id);
+app.use(cors({ origin: allowedOrigins, credentials: true }));
+app.use(express.json({ limit: '5mb' }));
 
-  socket.on('register', (userId) => {
-    users.set(userId, socket.id);
-    socket.data.userId = userId;
-    console.log(`[Signal] Registered: ${userId} -> ${socket.id}`);
-  });
+app.use('/api/auth', authRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/memories', memoriesRoutes);
+app.use('/api/couple', coupleRoutes);
+app.use('/api', uploadRoutes);
+app.use('/api/stickers', stickerRoutes);
+app.use('/api/notes', noteRoutes);
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-  socket.on('call:ring', ({ to, callType, from }) => {
-    const targetSocket = users.get(to);
-    if (targetSocket) {
-      io.to(targetSocket).emit('call:ring', { from, callType });
-      console.log(`[Signal] Ring: ${from} -> ${to} (${callType})`);
-    }
-  });
 
-  socket.on('call:accept', ({ to }) => {
-    const targetSocket = users.get(to);
-    if (targetSocket) {
-      io.to(targetSocket).emit('call:accept', { from: socket.data.userId });
-      console.log(`[Signal] Accept: ${socket.data.userId} -> ${to}`);
-    }
-  });
+app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
-  socket.on('call:reject', ({ to }) => {
-    const targetSocket = users.get(to);
-    if (targetSocket) {
-      io.to(targetSocket).emit('call:rejected', { from: socket.data.userId });
-      console.log(`[Signal] Reject: ${socket.data.userId} -> ${to}`);
-    }
-  });
-
-  socket.on('call:end', ({ to }) => {
-    const targetSocket = users.get(to);
-    if (targetSocket) {
-      io.to(targetSocket).emit('call:end', { from: socket.data.userId });
-      console.log(`[Signal] End: ${socket.data.userId} -> ${to}`);
-    }
-  });
-
-  socket.on('call:offer', ({ to, offer, callType }) => {
-    const targetSocket = users.get(to);
-    if (targetSocket) {
-      io.to(targetSocket).emit('call:offer', { from: socket.data.userId, offer, callType });
-      console.log(`[Signal] Offer: ${socket.data.userId} -> ${to}`);
-    }
-  });
-
-  socket.on('call:answer', ({ to, answer }) => {
-    const targetSocket = users.get(to);
-    if (targetSocket) {
-      io.to(targetSocket).emit('call:answer', { answer });
-      console.log(`[Signal] Answer: ${socket.data.userId} -> ${to}`);
-    }
-  });
-
-  socket.on('call:ice-candidate', ({ to, candidate }) => {
-    const targetSocket = users.get(to);
-    if (targetSocket) {
-      io.to(targetSocket).emit('call:ice-candidate', { candidate });
-      console.log(`[Signal] ICE: ${socket.data.userId} -> ${to}`);
-    }
-  });
-
-  socket.on('disconnect', () => {
-    if (socket.data.userId) {
-      users.delete(socket.data.userId);
-      console.log(`[Signal] Disconnected: ${socket.data.userId}`);
-    }
-  });
+// Error handler
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(err.status || 500).json({ message: err.message || 'Server error' });
 });
 
-server.listen(PORT, () => {
-  console.log(`[Signal] Signaling server running on port ${PORT}`);
-});
+setupSocket(io);
+
+const PORT = process.env.PORT || 5000;
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/couples-app';
+
+mongoose
+  .connect(MONGO_URI)
+  .then(() => {
+    console.log('Connected to MongoDB');
+    server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  })
+  .catch((err) => {
+    console.error('MongoDB connection error:', err);
+    process.exit(1);
+  });
+  console.log("MONGO_URI =", process.env.MONGO_URI);
