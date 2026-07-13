@@ -19,6 +19,9 @@ function setupSocket(io) {
       if (!couple || !couple.user2) return next(new Error('Couple not active'));
 
       socket.coupleId = String(couple._id);
+      socket.partnerId = String(couple.user1._id) === decoded.userId
+        ? String(couple.user2._id)
+        : String(couple.user1._id);
       next();
     } catch (err) {
       next(new Error('Authentication failed'));
@@ -30,6 +33,7 @@ function setupSocket(io) {
     socket.join(room);
 
     userSockets.set(socket.userId, socket.id);
+    console.log(`[Socket] Connected: ${socket.userId} in room ${room}`);
 
     if (!couplePresence.has(socket.coupleId)) {
       couplePresence.set(socket.coupleId, new Set());
@@ -60,61 +64,38 @@ function setupSocket(io) {
       socket.to(room).emit('receive:emoji', { emoji, from: socket.userId });
     });
 
-    socket.on('call:ring', ({ to, callType }) => {
-      const targetSocketId = userSockets.get(to);
-      if (targetSocketId) {
-        io.to(targetSocketId).emit('call:ring', { from: socket.userId, callType });
-        console.log(`[Call] Ring: ${socket.userId} -> ${to} (${callType})`);
-      } else {
-        console.log(`[Call] Ring failed: ${to} not connected`);
-      }
+    socket.on('call:ring', ({ callType }) => {
+      console.log(`[Call] Ring: ${socket.userId} -> room ${room} (${callType})`);
+      socket.to(room).emit('call:ring', { from: socket.userId, callType });
     });
 
-    socket.on('call:accept', ({ to }) => {
-      const targetSocketId = userSockets.get(to);
-      if (targetSocketId) {
-        io.to(targetSocketId).emit('call:accept', { from: socket.userId });
-        console.log(`[Call] Accept: ${socket.userId} -> ${to}`);
-      }
+    socket.on('call:accept', () => {
+      console.log(`[Call] Accept: ${socket.userId} -> room ${room}`);
+      socket.to(room).emit('call:accept', { from: socket.userId });
     });
 
-    socket.on('call:reject', ({ to }) => {
-      const targetSocketId = userSockets.get(to);
-      if (targetSocketId) {
-        io.to(targetSocketId).emit('call:rejected', { from: socket.userId });
-        console.log(`[Call] Reject: ${socket.userId} -> ${to}`);
-      }
+    socket.on('call:reject', () => {
+      console.log(`[Call] Reject: ${socket.userId} -> room ${room}`);
+      socket.to(room).emit('call:rejected', { from: socket.userId });
     });
 
-    socket.on('call:end', ({ to }) => {
-      const targetSocketId = userSockets.get(to);
-      if (targetSocketId) {
-        io.to(targetSocketId).emit('call:end', { from: socket.userId });
-        console.log(`[Call] End: ${socket.userId} -> ${to}`);
-      }
+    socket.on('call:end', () => {
+      console.log(`[Call] End: ${socket.userId} -> room ${room}`);
+      socket.to(room).emit('call:end', { from: socket.userId });
     });
 
-    socket.on('call:offer', ({ to, offer, callType }) => {
-      const targetSocketId = userSockets.get(to);
-      if (targetSocketId) {
-        io.to(targetSocketId).emit('call:offer', { from: socket.userId, offer, callType });
-        console.log(`[Call] Offer: ${socket.userId} -> ${to}`);
-      }
+    socket.on('call:offer', ({ offer, callType }) => {
+      console.log(`[Call] Offer: ${socket.userId} -> room ${room}`);
+      socket.to(room).emit('call:offer', { from: socket.userId, offer, callType });
     });
 
-    socket.on('call:answer', ({ to, answer }) => {
-      const targetSocketId = userSockets.get(to);
-      if (targetSocketId) {
-        io.to(targetSocketId).emit('call:answer', { answer });
-        console.log(`[Call] Answer: ${socket.userId} -> ${to}`);
-      }
+    socket.on('call:answer', ({ answer }) => {
+      console.log(`[Call] Answer: ${socket.userId} -> room ${room}`);
+      socket.to(room).emit('call:answer', { from: socket.userId, answer });
     });
 
-    socket.on('call:ice-candidate', ({ to, candidate }) => {
-      const targetSocketId = userSockets.get(to);
-      if (targetSocketId) {
-        io.to(targetSocketId).emit('call:ice-candidate', { candidate });
-      }
+    socket.on('call:ice-candidate', ({ candidate }) => {
+      socket.to(room).emit('call:ice-candidate', { candidate });
     });
 
     socket.on('disconnect', () => {
@@ -124,6 +105,7 @@ function setupSocket(io) {
         set.delete(socket.userId);
         io.to(room).emit('presence:update', { online: Array.from(set) });
       }
+      console.log(`[Socket] Disconnected: ${socket.userId}`);
     });
   });
 }
