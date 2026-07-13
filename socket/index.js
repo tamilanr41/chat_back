@@ -28,6 +28,8 @@ function setupSocket(io) {
     const room = `couple:${socket.coupleId}`;
     socket.join(room);
 
+    onlineUsers.set(socket.userId, socket.id);
+
     if (!onlineUsers.has(socket.coupleId)) {
       onlineUsers.set(socket.coupleId, new Set());
     }
@@ -57,7 +59,57 @@ function setupSocket(io) {
       socket.to(room).emit('receive:emoji', { emoji, from: socket.userId });
     });
 
+    socket.on('call:ring', ({ to, callType }) => {
+      const targetSocket = onlineUsers.get(to);
+      if (targetSocket) {
+        io.to(targetSocket).emit('call:ring', { from: socket.userId, callType });
+      }
+    });
+
+    socket.on('call:accept', ({ to }) => {
+      const targetSocket = onlineUsers.get(to);
+      if (targetSocket) {
+        io.to(targetSocket).emit('call:accept', { from: socket.userId });
+      }
+    });
+
+    socket.on('call:reject', ({ to }) => {
+      const targetSocket = onlineUsers.get(to);
+      if (targetSocket) {
+        io.to(targetSocket).emit('call:rejected', { from: socket.userId });
+      }
+    });
+
+    socket.on('call:end', ({ to }) => {
+      const targetSocket = onlineUsers.get(to);
+      if (targetSocket) {
+        io.to(targetSocket).emit('call:end', { from: socket.userId });
+      }
+    });
+
+    socket.on('call:offer', ({ to, offer, callType }) => {
+      const targetSocket = onlineUsers.get(to);
+      if (targetSocket) {
+        io.to(targetSocket).emit('call:offer', { from: socket.userId, offer, callType });
+      }
+    });
+
+    socket.on('call:answer', ({ to, answer }) => {
+      const targetSocket = onlineUsers.get(to);
+      if (targetSocket) {
+        io.to(targetSocket).emit('call:answer', { answer });
+      }
+    });
+
+    socket.on('call:ice-candidate', ({ to, candidate }) => {
+      const targetSocket = onlineUsers.get(to);
+      if (targetSocket) {
+        io.to(targetSocket).emit('call:ice-candidate', { candidate });
+      }
+    });
+
     socket.on('disconnect', () => {
+      onlineUsers.delete(socket.userId);
       const set = onlineUsers.get(socket.coupleId);
       if (set) {
         set.delete(socket.userId);
