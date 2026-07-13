@@ -1,7 +1,8 @@
 const jwt = require('jsonwebtoken');
 const Couple = require('../models/Couple');
 
-const onlineUsers = new Map();
+const userSockets = new Map();
+const couplePresence = new Map();
 
 function setupSocket(io) {
   io.use(async (socket, next) => {
@@ -28,15 +29,15 @@ function setupSocket(io) {
     const room = `couple:${socket.coupleId}`;
     socket.join(room);
 
-    onlineUsers.set(socket.userId, socket.id);
+    userSockets.set(socket.userId, socket.id);
 
-    if (!onlineUsers.has(socket.coupleId)) {
-      onlineUsers.set(socket.coupleId, new Set());
+    if (!couplePresence.has(socket.coupleId)) {
+      couplePresence.set(socket.coupleId, new Set());
     }
-    onlineUsers.get(socket.coupleId).add(socket.userId);
+    couplePresence.get(socket.coupleId).add(socket.userId);
 
     io.to(room).emit('presence:update', {
-      online: Array.from(onlineUsers.get(socket.coupleId)),
+      online: Array.from(couplePresence.get(socket.coupleId)),
     });
 
     socket.on('typing:start', () => {
@@ -60,57 +61,65 @@ function setupSocket(io) {
     });
 
     socket.on('call:ring', ({ to, callType }) => {
-      const targetSocket = onlineUsers.get(to);
-      if (targetSocket) {
-        io.to(targetSocket).emit('call:ring', { from: socket.userId, callType });
+      const targetSocketId = userSockets.get(to);
+      if (targetSocketId) {
+        io.to(targetSocketId).emit('call:ring', { from: socket.userId, callType });
+        console.log(`[Call] Ring: ${socket.userId} -> ${to} (${callType})`);
+      } else {
+        console.log(`[Call] Ring failed: ${to} not connected`);
       }
     });
 
     socket.on('call:accept', ({ to }) => {
-      const targetSocket = onlineUsers.get(to);
-      if (targetSocket) {
-        io.to(targetSocket).emit('call:accept', { from: socket.userId });
+      const targetSocketId = userSockets.get(to);
+      if (targetSocketId) {
+        io.to(targetSocketId).emit('call:accept', { from: socket.userId });
+        console.log(`[Call] Accept: ${socket.userId} -> ${to}`);
       }
     });
 
     socket.on('call:reject', ({ to }) => {
-      const targetSocket = onlineUsers.get(to);
-      if (targetSocket) {
-        io.to(targetSocket).emit('call:rejected', { from: socket.userId });
+      const targetSocketId = userSockets.get(to);
+      if (targetSocketId) {
+        io.to(targetSocketId).emit('call:rejected', { from: socket.userId });
+        console.log(`[Call] Reject: ${socket.userId} -> ${to}`);
       }
     });
 
     socket.on('call:end', ({ to }) => {
-      const targetSocket = onlineUsers.get(to);
-      if (targetSocket) {
-        io.to(targetSocket).emit('call:end', { from: socket.userId });
+      const targetSocketId = userSockets.get(to);
+      if (targetSocketId) {
+        io.to(targetSocketId).emit('call:end', { from: socket.userId });
+        console.log(`[Call] End: ${socket.userId} -> ${to}`);
       }
     });
 
     socket.on('call:offer', ({ to, offer, callType }) => {
-      const targetSocket = onlineUsers.get(to);
-      if (targetSocket) {
-        io.to(targetSocket).emit('call:offer', { from: socket.userId, offer, callType });
+      const targetSocketId = userSockets.get(to);
+      if (targetSocketId) {
+        io.to(targetSocketId).emit('call:offer', { from: socket.userId, offer, callType });
+        console.log(`[Call] Offer: ${socket.userId} -> ${to}`);
       }
     });
 
     socket.on('call:answer', ({ to, answer }) => {
-      const targetSocket = onlineUsers.get(to);
-      if (targetSocket) {
-        io.to(targetSocket).emit('call:answer', { answer });
+      const targetSocketId = userSockets.get(to);
+      if (targetSocketId) {
+        io.to(targetSocketId).emit('call:answer', { answer });
+        console.log(`[Call] Answer: ${socket.userId} -> ${to}`);
       }
     });
 
     socket.on('call:ice-candidate', ({ to, candidate }) => {
-      const targetSocket = onlineUsers.get(to);
-      if (targetSocket) {
-        io.to(targetSocket).emit('call:ice-candidate', { candidate });
+      const targetSocketId = userSockets.get(to);
+      if (targetSocketId) {
+        io.to(targetSocketId).emit('call:ice-candidate', { candidate });
       }
     });
 
     socket.on('disconnect', () => {
-      onlineUsers.delete(socket.userId);
-      const set = onlineUsers.get(socket.coupleId);
+      userSockets.delete(socket.userId);
+      const set = couplePresence.get(socket.coupleId);
       if (set) {
         set.delete(socket.userId);
         io.to(room).emit('presence:update', { online: Array.from(set) });
