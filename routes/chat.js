@@ -72,6 +72,7 @@ router.post('/messages', async (req, res, next) => {
       const partnerId = String(req.couple.user1) === String(req.userId)
         ? req.couple.user2
         : req.couple.user1;
+      console.log('[Chat] Push: sender=', req.userId, 'partner=', partnerId);
       const partner = await User.findById(partnerId).select('name nickname');
       const partnerName = partner?.nickname || partner?.name || 'Your partner';
       let body = text.trim();
@@ -84,8 +85,10 @@ router.post('/messages', async (req, res, next) => {
         body,
         tag: 'chat-message',
         url: '/chat',
-      }).catch(() => {});
-    } catch {}
+      }).catch((e) => console.error('[Chat] Push send error:', e.message));
+    } catch (e) {
+      console.error('[Chat] Push block error:', e.message);
+    }
 
     res.status(201).json({ message: populated });
   } catch (err) {

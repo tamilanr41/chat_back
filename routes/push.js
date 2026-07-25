@@ -52,7 +52,14 @@ router.get('/push/vapid-key', (req, res) => {
 
 async function sendPushToUser(userId, payload) {
   try {
+    console.log('[Push] Sending to userId:', userId);
+    console.log('[Push] VAPID keys set:', !!process.env.VAPID_PRIVATE_KEY, !!process.env.VAPID_PUBLIC_KEY);
     const subs = await PushSubscription.find({ userId });
+    console.log('[Push] Subscriptions found:', subs.length);
+    if (subs.length === 0) {
+      console.log('[Push] No subscriptions for user:', userId);
+      return;
+    }
     const results = await Promise.allSettled(
       subs.map((sub) =>
         webpush.sendNotification(
@@ -61,13 +68,22 @@ async function sendPushToUser(userId, payload) {
         )
       )
     );
+    results.forEach((r, i) => {
+      if (r.status === 'fulfilled') {
+        console.log('[Push] Sent successfully to sub', i);
+      } else {
+        console.error('[Push] Failed for sub', i, ':', r.reason?.statusCode, r.reason?.message);
+      }
+    });
     // Remove expired subscriptions
     for (let i = 0; i < results.length; i++) {
       if (results[i].status === 'rejected' && results[i].reason?.statusCode === 410) {
         await PushSubscription.deleteOne({ _id: subs[i]._id });
       }
     }
-  } catch {}
+  } catch (e) {
+    console.error('[Push] sendPushToUser error:', e.message);
+  }
 }
 
 module.exports = router;
