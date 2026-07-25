@@ -14,6 +14,7 @@ const coupleRoutes = require('./routes/couple');
 const uploadRoutes = require('./routes/upload');
 const stickerRoutes = require('./routes/stickers');
 const noteRoutes = require('./routes/notes');
+const pushRoutes = require('./routes/push');
 const setupSocket = require('./socket');
 
 const app = express();
@@ -38,6 +39,7 @@ app.use('/api/couple', coupleRoutes);
 app.use('/api', uploadRoutes);
 app.use('/api/stickers', stickerRoutes);
 app.use('/api/notes', noteRoutes);
+app.use('/api', pushRoutes);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 

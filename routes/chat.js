@@ -1,7 +1,10 @@
 const express = require('express');
 const Message = require('../models/Message');
+const User = require('../models/User');
+const Couple = require('../models/Couple');
 const authMiddleware = require('../middleware/auth');
 const { requireCouple } = require('../middleware/couple');
+const { sendPushToUser } = require('./push');
 
 const router = express.Router();
 
@@ -63,6 +66,26 @@ router.post('/messages', async (req, res, next) => {
     if (io) {
       io.to(`couple:${req.couple._id}`).emit('message:new', populated);
     }
+
+    // Send push notification to offline partner
+    try {
+      const partnerId = String(req.couple.user1) === String(req.userId)
+        ? req.couple.user2
+        : req.couple.user1;
+      const partner = await User.findById(partnerId).select('name nickname');
+      const partnerName = partner?.nickname || partner?.name || 'Your partner';
+      let body = text.trim();
+      if (type === 'image') body = '📷 Photo';
+      else if (type === 'sticker') body = '🎨 Sticker';
+      else if (type === 'video') body = '🎬 Video';
+      else if (type === 'audio') body = '🎤 Voice message';
+      sendPushToUser(partnerId, {
+        title: partnerName,
+        body,
+        tag: 'chat-message',
+        url: '/chat',
+      }).catch(() => {});
+    } catch {}
 
     res.status(201).json({ message: populated });
   } catch (err) {
