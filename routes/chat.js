@@ -6,6 +6,8 @@ const authMiddleware = require('../middleware/auth');
 const { requireCouple } = require('../middleware/couple');
 const { sendPushToUser } = require('./push');
 
+const PUSH_ENABLED = false;
+
 const router = express.Router();
 
 router.use(authMiddleware, requireCouple);
@@ -68,26 +70,28 @@ router.post('/messages', async (req, res, next) => {
     }
 
     // Send push notification to offline partner
-    try {
-      const partnerId = String(req.couple.user1) === String(req.userId)
-        ? req.couple.user2
-        : req.couple.user1;
-      console.log('[Chat] Push: sender=', req.userId, 'partner=', partnerId);
-      const partner = await User.findById(partnerId).select('name nickname');
-      const partnerName = partner?.nickname || partner?.name || 'Your partner';
-      let body = text.trim();
-      if (type === 'image') body = '📷 Photo';
-      else if (type === 'sticker') body = '🎨 Sticker';
-      else if (type === 'video') body = '🎬 Video';
-      else if (type === 'audio') body = '🎤 Voice message';
-      sendPushToUser(partnerId, {
-        title: partnerName,
-        body,
-        tag: 'chat-message',
-        url: '/chat',
-      }).catch((e) => console.error('[Chat] Push send error:', e.message));
-    } catch (e) {
-      console.error('[Chat] Push block error:', e.message);
+    if (PUSH_ENABLED) {
+      try {
+        const partnerId = String(req.couple.user1) === String(req.userId)
+          ? req.couple.user2
+          : req.couple.user1;
+        console.log('[Chat] Push: sender=', req.userId, 'partner=', partnerId);
+        const partner = await User.findById(partnerId).select('name nickname');
+        const partnerName = partner?.nickname || partner?.name || 'Your partner';
+        let body = text.trim();
+        if (type === 'image') body = '📷 Photo';
+        else if (type === 'sticker') body = '🎨 Sticker';
+        else if (type === 'video') body = '🎬 Video';
+        else if (type === 'audio') body = '🎤 Voice message';
+        sendPushToUser(partnerId, {
+          title: partnerName,
+          body,
+          tag: 'chat-message',
+          url: '/chat',
+        }).catch((e) => console.error('[Chat] Push send error:', e.message));
+      } catch (e) {
+        console.error('[Chat] Push block error:', e.message);
+      }
     }
 
     res.status(201).json({ message: populated });
